@@ -1,0 +1,46 @@
+===========
+mkmasfimage
+===========
+
+Create a MASF (Metadata and Small Files) image of a folder.
+
+It essentially creates a snapshot of the given folder, without
+the file contents.
+
+This can be useful when you need to know the contents of a drive
+that is not easily accessible (e.g. an external hard drive), without
+keeping a complete copy of it.
+
+In addition, a size threshold (for all files, or for specific file
+extensions) can be set so that they are also included in the image.
+For example, all "*.txt" and "*.py" files that are smaller than 10k
+may be included.
+
+In essence, the file hierarchy, permissions, file sizes, and the small
+files are preserved, to create a tiny image of the target folder.
+
+The image is compressed using the squashfs tools.
+
+For usage details, run the command "mkmasfimage -h".
+
+Requirements
+============
+* GNU cp
+* squashfs-tools
+* GNU truncate (optional, for storing file sizes)
+
+Implementation Details
+======================
+All the files, except the excluded files, are copied to a temporary
+folder (which is usually /tmp, stored in the RAM) with the
+"--attributes-only" switch of the GNU cp. This copies everything about a
+file, except the contents, therefore the file size is zero.
+
+Optionally, GNU truncate is used to set the file sizes. This utility
+sets the file size without changing its size on the file system, therefore
+the files can be larger than the underlying file system.
+The file contents become all zero, which is easily compressed by the
+squashfs-tools.
+
+The excluded files are copied normally. squashfs-tools still compress them,
+but these files can be completely available inside the image file.
