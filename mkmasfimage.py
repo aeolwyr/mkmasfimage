@@ -11,12 +11,7 @@ The small files are copied to a temporary folder (which usually
 resides in RAM), therefore make sure you have enough space there. """
 
 import argparse, os, subprocess, tempfile
-
-def get_all_files(folder):
-    """ Iterate through all the files in a folder, including subfolders. """
-    for dirpath, dirnames, filenames in os.walk(folder):
-        for filename in filenames:
-            yield os.path.join(dirpath, filename)
+import pathlib, shutil
 
 def parse_filesize(filesize):
     """ Parse a human readable filesize string into a integer.
@@ -45,62 +40,37 @@ def make_masf_image(source_folder, destination_file,
     store_filesizes -- whether to store the filesize information in
                        the image or not, significantly slows down the
                        process when enabled """
-    original_dir = os.getcwd()
-    try:
-        # navigate to the source directory
-        os.chdir(source_folder)
-        make_masf_image_of_current_folder(destination_file,
-                exclusion_rules, global_size_limit, store_filesizes)
-    finally:
-        # return to the original directory when finished
-        os.chdir(original_dir)
 
-def make_masf_image_of_current_folder(destination_file,
-        exclusion_rules, global_size_limit, store_filesizes=False):
-    """ Create a MASF image of the current working directory. """
-    files_to_keep = set()
-    files_to_empty = set()
-
-    # determine which files to keep
-    for filename in get_all_files('.'):
-        filesize = os.stat(filename).st_size
+    def copy_function(src, dst, *, follow_symlinks=True):
+        size = os.path.getsize(src)
+        if size < global_size_limit:
+            # copy as normal
+            return shutil.copy2(src, dst, follow_symlinks=follow_symlinks)
         for extension, size_limit in exclusion_rules.items():
             # extension is in exclusion rules, keep if the filesize
             # is not very large
-            if filename.endswith(extension) and filesize < size_limit:
-                files_to_keep.add(filename)
-                break
-        else:
-            # this else block is executed if the loop above never breaks,
-            # i.e. the file is not excluded
-            if filesize < global_size_limit:
-                files_to_keep.add(filename)
-            else:
-                files_to_empty.add(filename)
+            if src.endswith(extension) and size < size_limit:
+                # copy as normal
+                return shutil.copy2(src, dst, follow_symlinks=follow_symlinks)
+        # the file was not copied normally, create an empty file
+        pathlib.Path(dst).touch()
+        if store_filesizes:
+            # use the truncate function to set the filesizes if requested
+            os.truncate(dst, size)
+        # copy the attributes only
+        return shutil.copystat(src, dst, follow_symlinks=follow_symlinks)
 
     # prepare a temp folder to create its image
     with tempfile.TemporaryDirectory() as tmpdirname:
-        if files_to_keep:
-            # copy as normal
-            full_copy = ['cp', '--archive', '--parents']
-            full_copy.extend(files_to_keep)
-            full_copy.append(tmpdirname)
-            subprocess.run(full_copy)
+        # copytree requires a non-existing directory
+        tmpdirname = os.path.join(tmpdirname, 'dst')
 
-        if files_to_empty:
-            # copy the attributes only
-            create_empty = ['cp', '--archive', '--attributes-only', '--parents']
-            create_empty.extend(files_to_empty)
-            create_empty.append(tmpdirname)
-            subprocess.run(create_empty)
-
-            if store_filesizes:
-                # use the truncate utility to set the filesizes if requested
-                for filename in files_to_empty:
-                    subprocess.run([
-                            'truncate',
-                            '--reference=' + filename,
-                            os.path.join(tmpdirname, filename)])
+        try:
+            shutil.copytree(source_folder, tmpdirname, symlinks=True,
+                            copy_function=copy_function)
+        except shutil.Error as errors:
+            for error in errors.args[0]:
+                print(error[2])
 
         # create the image
         subprocess.run(['mksquashfs', tmpdirname, destination_file])

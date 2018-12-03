@@ -25,18 +25,16 @@ For usage details, run the command "mkmasfimage -h".
 
 Requirements
 ============
-* GNU cp
 * squashfs-tools
-* GNU truncate (optional, for storing file sizes)
 
 Implementation Details
 ======================
 All the files, except the excluded files, are copied to a temporary
 folder (which is usually /tmp, stored in the RAM) with the
-"--attributes-only" switch of the GNU cp. This copies everything about a
+copystat function of the shutil module. This copies everything about a
 file, except the contents, therefore the file size is zero.
 
-Optionally, GNU truncate is used to set the file sizes. This utility
+Optionally, os.truncate is used to set the file sizes. This function
 sets the file size without changing its size on the file system, therefore
 the files can be larger than the underlying file system.
 The file contents become all zero, which is easily compressed by the
