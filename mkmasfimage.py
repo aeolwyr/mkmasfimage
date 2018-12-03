@@ -10,8 +10,13 @@ but this slows down the image creation process considerably.
 The small files are copied to a temporary folder (which usually
 resides in RAM), therefore make sure you have enough space there. """
 
-import argparse, os, subprocess, tempfile
-import pathlib, shutil
+import argparse
+import os
+import pathlib
+import shutil
+import subprocess
+import tempfile
+
 
 def parse_filesize(filesize):
     """ Parse a human readable filesize string into a integer.
@@ -19,16 +24,15 @@ def parse_filesize(filesize):
     try:
         if filesize.endswith('k'):
             return int(filesize[:-1]) * 1024
-        elif filesize.endswith('M'):
+        if filesize.endswith('M'):
             return int(filesize[:-1]) * 1048576
-        else:
-            return int(filesize)
-    except ValueError as e:
+        return int(filesize)
+    except ValueError as error:
         # include the original exception
-        raise ValueError('Invalid size: {}'.format(filesize)) from e
+        raise ValueError('Invalid size: {}'.format(filesize)) from error
 
 def make_masf_image(source_folder, destination_file,
-        exclusion_rules, global_size_limit, store_filesizes=False):
+                    exclusion_rules, global_size_limit, store_filesizes=False):
     """ Create a MASF image of a given directory.
 
     Keyword arguments:
@@ -75,10 +79,11 @@ def make_masf_image(source_folder, destination_file,
         # create the image
         subprocess.run(['mksquashfs', tmpdirname, destination_file])
 
-if __name__ == '__main__':
+def main():
+    """ Entry point for this script, in case it is invoked on the command line. """
     parser = argparse.ArgumentParser(
-            description='Create a MASF (Metadata and Small Files) image.',
-            epilog='For the size values, units k and M are supported')
+        description='Create a MASF (Metadata and Small Files) image.',
+        epilog='For the size values, units k and M are supported')
 
     parser.add_argument('-s', '--store-filesizes', action='store_true',
                         help='''include the sizes of the files, slows down
@@ -109,3 +114,6 @@ if __name__ == '__main__':
                     exclusion_rules=rules_dict,
                     global_size_limit=global_limit,
                     store_filesizes=args.store_filesizes)
+
+if __name__ == '__main__':
+    main()
